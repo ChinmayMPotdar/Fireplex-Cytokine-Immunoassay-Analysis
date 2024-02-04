@@ -5,6 +5,11 @@ output:
   html_document: default
 ---
 
+## Note: Code involving string pattern recognition may need to be adjusted to your variable and parameter names
+## Note: Adjust file paths and object names accordingly
+
+## Knit Setup
+
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 

@@ -56,7 +56,7 @@ Once an experiment data is exported from FAW as a .csv then step 1 does not need
 ```{r data cleaning functions}
 
 ## set working directory manually in console according to project directory
-# setwd("C:/Chinmay/Grad School Info/Queens MSc/Lab Research/Fireplex/Data/October 7 2022 fireplex")
+# setwd("Your/Preferred/Project/Directory")
 
 # a function to summarize a pair of rows that are from the same sample/patient and return:
 # the mean of the values if two, but if only one just return that value, and if no values return 'NA'
@@ -198,10 +198,10 @@ colnames(oct_7_2022_cytokines_df) <- column_labels
 cytokines_oct_7_2022_processed <- as.data.frame(oct_7_2022_cytokines_df)
 
 # export data at this stage
-write_csv(cytokines_oct_7_2022_processed, "C:/Chinmay/Grad School Info/Queens MSc/Lab Research/R studio/cytokines.csv")
+write_csv(cytokines_oct_7_2022_processed, "Your/Preferred/Directory.csv")
 
 # can run the line below to re-start at this point (also need to run first (initialization) chunk to load libraries)
-# cytokines <- read_csv("/abovefilepath/cytokines.csv")
+# cytokines <- read_csv("/Abovefilepath/Yourfile.csv")
 
 ```
 

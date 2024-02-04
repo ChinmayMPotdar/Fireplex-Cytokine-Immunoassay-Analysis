@@ -236,7 +236,7 @@ error.bar <- function(x, y, upper, lower=upper, length=0.02,...){
 }
 
 # calculate standard deviation for each cytokine and patient condition
-stdev <- aggregate(cbind(GM_CSF,IFN_gamma,IL_1beta,IL_2,IL_4,IL_5,IL_6,IL_8,IL_9,IL_10,IL_12p70,IL_13,IL_17A,MCP1,MIP1a,MIP1b,TNF_alpha)~patient_id , data=cytokines_june_9_2022_processed , sd)
+stdev <- aggregate(cbind(GM_CSF,IFN_gamma,IL_1beta,IL_2,IL_4,IL_5,IL_6,IL_8,IL_9,IL_10,IL_12p70,IL_13,IL_17A,MCP1,MIP1a,MIP1b,TNF_alpha)~patient_id, data=cytokines_june_9_2022_processed, sd)
 rownames(stdev) <- stdev[,1]
 stdev <- as.matrix(stdev[,-1]) * 1.96 / 10
 
@@ -244,7 +244,7 @@ stdev <- as.matrix(stdev[,-1]) * 1.96 / 10
 par(mar = c(7.1, 5.1, 4.1, 3.1))
 
 # add error bars and build bar graph
-cytokine_barplot <- barplot(avg_cytokines, beside=T, legend.text=T, col= c("green","red"), ylim=c(0,lim), ylab="Cytokine Concentration pg/ml", las = 2, )
+cytokine_barplot <- barplot(avg_cytokines, beside=T, legend.text=T, col= c("green","red"), ylim=c(0,lim), ylab="Cytokine Concentration pg/ml", las = 2)
 error.bar(cytokine_barplot,avg_cytokines, stdev)
 
 ```

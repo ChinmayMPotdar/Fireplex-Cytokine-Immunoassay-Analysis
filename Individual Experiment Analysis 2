@@ -93,93 +93,93 @@ df_oct_7_2022 <- oct_7_2022 %>%
   dplyr::slice(1:46) %>% # remove the extra experimental data below the main table
   dplyr::filter(Well %in% c("A05", "A06", "B03", "B04", "B05", "B06", "C03", "C04", "C05", "C06", "D03", "D04", "D05", "D06", "E03", "E04", "E05", "E06", "F03", "F04", "F05", "F06", "G03", "G04", "G05", "G06", "H03", "H04")) # filter to only the relevant rows (patient samples) ("H05", "H06" which is sample "O" should have been included too but there is the column match error that occurs in the FAW software)
 
-ibd_100151_list <- summarize_patient(
+ibd_YourPatientID1_list <- summarize_patient(
   input_data = df_oct_7_2022,
-  patient_id = "ibd_100151",
+  patient_id = "ibd_YourPatientID1",
   well_id_1 = "B03",
   well_id_2 = "B04")
 
-ibd_100152_list <- summarize_patient(
+ibd_YourPatientID2_list <- summarize_patient(
   input_data = df_oct_7_2022,
-  patient_id = "ibd_100152",
+  patient_id = "ibd_YourPatientID2",
   well_id_1 = "C03",
   well_id_2 = "C04")
 
-ibs_100154_list <- summarize_patient(
+ibs_YourPatientID3_list <- summarize_patient(
   input_data = df_oct_7_2022,
-  patient_id = "ibs_100154",
+  patient_id = "ibs_YourPatientID3",
   well_id_1 = "D03",
   well_id_2 = "D04")
 
-ibs_100156_list <- summarize_patient(
+ibs_YourPatientID4_list <- summarize_patient(
   input_data = df_oct_7_2022,
-  patient_id = "ibs_100156",
+  patient_id = "ibs_YourPatientID4",
   well_id_1 = "E03",
   well_id_2 = "E04")
 
-ibs_100157_list <- summarize_patient(
+ibs_YourPatientID5_list <- summarize_patient(
   input_data = df_oct_7_2022,
-  patient_id = "ibs_100157",
+  patient_id = "ibs_YourPatientID5",
   well_id_1 = "F03",
   well_id_2 = "F04")
 
-ibs_100158_list <- summarize_patient(
+ibs_YourPatientID6_list <- summarize_patient(
   input_data = df_oct_7_2022,
-  patient_id = "ibs_100158",
+  patient_id = "ibs_YourPatientID6",
   well_id_1 = "G03",
   well_id_2 = "G04")
 
-ibd_100159_list <- summarize_patient(
+ibd_YourPatientID7_list <- summarize_patient(
   input_data = df_oct_7_2022,
-  patient_id = "ibd_100159",
+  patient_id = "ibd_YourPatientID7",
   well_id_1 = "H03",
   well_id_2 = "H04")
 
-ibs_100160_list <- summarize_patient(
+ibs_YourPatientID8_list <- summarize_patient(
   input_data = df_oct_7_2022,
-  patient_id = "ibs_100160",
+  patient_id = "ibs_YourPatientID8",
   well_id_1 = "A05",
   well_id_2 = "A06")
 
-ibs_100161_list <- summarize_patient(
+ibs_YourPatientID9_list <- summarize_patient(
   input_data = df_oct_7_2022,
-  patient_id = "ibs_100161",
+  patient_id = "ibs_YourPatientID9",
   well_id_1 = "B05",
   well_id_2 = "B06")
 
-ibd_100167_list <- summarize_patient(
+ibd_YourPatientID10_list <- summarize_patient(
   input_data = df_oct_7_2022,
-  patient_id = "ibd_100167",
+  patient_id = "ibd_YourPatientID10",
   well_id_1 = "C05",
   well_id_2 = "C06")
 
-healthy_100168_list <- summarize_patient(
+healthy_YourPatientID11_list <- summarize_patient(
   input_data = df_oct_7_2022,
-  patient_id = "healthy_100168",
+  patient_id = "healthy_YourPatientID11",
   well_id_1 = "D05",
   well_id_2 = "D06")
 
-healthy_100169_list <- summarize_patient(
+healthy_YourPatientID12_list <- summarize_patient(
   input_data = df_oct_7_2022,
-  patient_id = "healthy_100169",
+  patient_id = "healthy_YourPatientID12",
   well_id_1 = "E05",
   well_id_2 = "E06")
 
-healthy_100266_list <- summarize_patient(
+healthy_YourPatientID13_list <- summarize_patient(
   input_data = df_oct_7_2022,
-  patient_id = "healthy_100266",
+  patient_id = "healthy_YourPatientID13",
   well_id_1 = "F05",
   well_id_2 = "F06")
 
-healthy_100271_list <- summarize_patient(
+healthy_YourPatientID14_list <- summarize_patient(
   input_data = df_oct_7_2022,
-  patient_id = "healthy_100271",
+  patient_id = "healthy_YourPatientID14",
   well_id_1 = "G05",
   well_id_2 = "G06")
 
-# O_100278_list <- summarize_patient(
+# O_YourPatientID15_list <- summarize_patient(
 #   input_data = df_oct_7_2022,
-#   patient_id = "healthy/IBS/IBD_100278",
+#   patient_id = "healthy/IBS/IBD_YourPatientID15",
 #   well_id_1 = "H05",
 #   well_id_2 = "H06")
 
@@ -188,7 +188,7 @@ column_labels <- df_oct_7_2022 |>
   mutate(patient_id = NA) |>
   colnames()
   
-oct_7_2022_cytokines_df <- do.call(cbind, Map(rbind, ibd_100151_list, ibd_100152_list, ibs_100154_list, ibs_100156_list, ibs_100157_list, ibs_100158_list, ibd_100159_list, ibs_100160_list, ibs_100161_list, ibd_100167_list, healthy_100168_list, healthy_100169_list, healthy_100266_list, healthy_100271_list))
+oct_7_2022_cytokines_df <- do.call(cbind, Map(rbind, ibd_YourPatientID1_list, ibd_YourPatientID2_list, ibs_YourPatientID3_list, ibs_YourPatientID4_list, ibs_YourPatientID5_list, ibs_YourPatientID6_list, ibd_YourPatientID7_list, ibs_YourPatientID8_list, ibs_YourPatientID9_list, ibd_YourPatientID10_list, healthy_YourPatientID11_list, healthy_YourPatientID12_list, healthy_YourPatientID13_list, healthy_YourPatientID14_list))
 colnames(oct_7_2022_cytokines_df) <- column_labels
 
 ```

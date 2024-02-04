@@ -93,21 +93,21 @@ df_june_9_2022 <- june_9_2022 %>%
   dplyr::slice(1:27) %>% # remove the extra experimental data below the main table
   dplyr::filter(Well %in% c("C03", "C04", "D03", "D04", "E03", "E04")) # filter to only the relevant rows (patient samples)
 
-healthy_100254_list <- summarize_patient(
+healthy_YourPatientID1_list <- summarize_patient(
   input_data = df_june_9_2022,
-  patient_id = "healthy_100254",
+  patient_id = "healthy_YourPatientID1",
   well_id_1 = "C03",
   well_id_2 = "C04")
 
-ibs_100195_list <- summarize_patient(
+ibs_YourPatientID2_list <- summarize_patient(
   input_data = df_june_9_2022,
-  patient_id = "ibs_100195",
+  patient_id = "ibs_YourPatientID2",
   well_id_1 = "D03",
   well_id_2 = "D04")
 
-healthy_100155_list <- summarize_patient(
+healthy_YourPatientID3_list <- summarize_patient(
   input_data = df_june_9_2022,
-  patient_id = "healthy_100155",
+  patient_id = "healthy_YourPatientID3",
   well_id_1 = "E03",
   well_id_2 = "E04")
 
@@ -116,7 +116,7 @@ column_labels <- df_june_9_2022 |>
   mutate(patient_id = NA) |>
   colnames()
   
-june_9_2022_cytokines_df <- do.call(cbind, Map(rbind, healthy_100254_list, ibs_100195_list, healthy_100155_list))
+june_9_2022_cytokines_df <- do.call(cbind, Map(rbind, healthy_YourPatientID1_list, ibs_YourPatientID2_list, healthy_YourPatientID3_list))
 colnames(june_9_2022_cytokines_df) <- column_labels
 
 ```

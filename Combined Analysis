@@ -1,0 +1,716 @@
+---
+title: "Combined Fireplex Runs (Feb 9th 2023, Oct 7th 2022, June 9th 2022)"
+output: html_document
+date: '2023-03-06'
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# clean environment
+rm()
+
+# load required R packages
+library(tidyverse)  # for basic data organization
+library(janitor) # for keeping data clean while turning data longer for graphs
+library(lubridate) # for munging dates, esp to including in filenames when exporting files
+library(tidymodels)
+library(embed)
+
+```
+
+##########################################################################################################
+Part 1: Open and save combined data in R
+##########################################################################################################
+
+1. First, combine the data from the individual R-markdown files associated with each experiment 
+
+```{r data combining}
+
+# wd might need to be changed according to project directory
+setwd("Your/Preferred/Project/Directory")
+
+combined_df2 <- rbind(data.frame(read_csv("Your/Saved/File1.csv")), data.frame(read_csv("Your/Saved/File2.csv")), data.frame(read_csv("Your/Saved/File3.csv")))
+
+# create list of cytokine names for proper column labeling
+cytokine_list <- list("GM_CSF","IFN_gamma","IL_1beta","IL_2","IL_4","IL_5","IL_6","IL_8","IL_9","IL_10","IL_12p70","IL_13","IL_17A","MCP1","MIP1a","MIP1b","TNF_alpha")
+
+names(combined_df2)[1:17] <- c(cytokine_list)
+
+```
+
+2. Write a CSV file for the combined data
+
+``` {r write CSV of all data}
+
+# export data at this stage
+write_csv(combined_df2, "Your/Combined/File.csv")
+
+# can run the line below to re-start at this point (also need to run first (initialization) chunk to load libraries)
+# combined_df2 <- read_csv("Your/Combined/File.csv")
+
+```
+
+##########################################################################################################
+Part 2: Analyze the Data
+##########################################################################################################
+
+``` {r reshape data}
+
+# simple example plot
+ggplot(combined_df2, aes(x = patient_id, y = `GM_CSF`)) + 
+  geom_bar(stat = "identity")
+
+# human readable patient_id labels
+cytokines_short_names <- c("IBD 1", "IBD 2", "IBS 1", "IBS 2", "IBS 3", "IBS 4", "IBD 3", "IBS 5", "IBS 6", "IBD 4", "Healthy 1", "Healthy 2", "Healthy 3", "Healthy 4", "Healthy 5", "IBS 7", "Healthy 6", "IBD 5", "IBD 6", "IBD 7", "IBD 8", "IBD 9", "IBD 10", "IBD 11", "IBD 12", "IBD 13", "IBD 14", "IBD 15", "IBD 16", "Healthy 7", "Healthy 8", "Healthy 9")
+
+# reshape data for plotting
+cytokines_longer <- combined_df2|>
+  mutate(patient_id = cytokines_short_names) |>
+  pivot_longer(!patient_id, values_to = "pg/mL")
+
+# change "NA" values in "pg/ml" column to "0"
+cytokines_longer$`pg/mL`[which(is.na(cytokines_longer$`pg/mL`))] <- 0
+
+# make "pg/ml" column values numeric rather than character (so Y-axis for data values are on continuous scale rather than discrete)
+cytokines_longer$`pg/mL` <- as.numeric(cytokines_longer$`pg/mL`)
+
+```
+
+``` {r barplot}
+
+# create list of cytokines to use in for loop
+cytokine_list <- list("GM-CSF","IFN-gamma","IL-1 beta","IL-2","IL-4","IL-5","IL-6","IL-8","IL-9","IL-10","IL-12p70","IL-13","IL-17A","MCP1","MIP1a","MIP1b","TNF-alpha")
+
+for(m in cytokine_list) {
+  
+# make names of cytokines R friendly  
+cytokine_name_fixed <- gsub("-", "_", m)
+
+# subset healthy patients
+assign(paste0(cytokine_name_fixed, "_healthy_intermediate"), cytokines_longer[grep("Healthy", cytokines_longer$patient_id), ])
+
+# remove rows that contain values of 0 for healthy patients
+assign(paste0(cytokine_name_fixed, "_healthy_intermediate"), get(paste0(cytokine_name_fixed, "_healthy_intermediate"))[apply(get(paste0(cytokine_name_fixed, "_healthy_intermediate"))!=0, 1, all),])  
+
+# subset by cytokine for healthy patients
+assign(paste0(cytokine_name_fixed, "_healthy_mean"), mean(get(paste0(cytokine_name_fixed, "_healthy_intermediate"))$`pg/mL`[grep(m, get(paste0(cytokine_name_fixed, "_healthy_intermediate"))$name)]), envir = .GlobalEnv)
+
+
+# subset IBS patients
+assign(paste0(cytokine_name_fixed, "_IBS_intermediate"), cytokines_longer[grep("IBS", cytokines_longer$patient_id), ])
+
+# remove rows that contain values of 0 for IBS patients
+assign(paste0(cytokine_name_fixed, "_IBS_intermediate"), get(paste0(cytokine_name_fixed, "_IBS_intermediate"))[apply(get(paste0(cytokine_name_fixed, "_IBS_intermediate"))!=0, 1, all),])  
+
+# subset by cytokine for IBS patients
+assign(paste0(cytokine_name_fixed, "_IBS_mean"), mean(get(paste0(cytokine_name_fixed, "_IBS_intermediate"))$`pg/mL`[grep(m, get(paste0(cytokine_name_fixed, "_IBS_intermediate"))$name)]), envir = .GlobalEnv)
+
+
+# subset IBD patients
+assign(paste0(cytokine_name_fixed, "_IBD_intermediate"), cytokines_longer[grep("IBD", cytokines_longer$patient_id), ])
+
+# remove rows that contain values of 0 for IBD patients
+assign(paste0(cytokine_name_fixed, "_IBD_intermediate"), get(paste0(cytokine_name_fixed, "_IBD_intermediate"))[apply(get(paste0(cytokine_name_fixed, "_IBD_intermediate"))!=0, 1, all),])  
+
+# subset by cytokine for IBD patients
+assign(paste0(cytokine_name_fixed, "_IBD_mean"), mean(get(paste0(cytokine_name_fixed, "_IBD_intermediate"))$`pg/mL`[grep(m, get(paste0(cytokine_name_fixed, "_IBD_intermediate"))$name)]), envir = .GlobalEnv)  
+
+}
+patientcondition_list <- c("healthy", "IBS", "IBD")
+
+# create lists of mean cytokine levels obtained from the for loop and separated by patient type (healthy, IBS, and IBD)
+healthy <- c(GM_CSF_healthy_mean,IFN_gamma_healthy_mean, `IL_1 beta_healthy_mean`, IL_2_healthy_mean, IL_4_healthy_mean, IL_5_healthy_mean, IL_6_healthy_mean, IL_8_healthy_mean, IL_9_healthy_mean, IL_10_healthy_mean, IL_12p70_healthy_mean, IL_13_healthy_mean, IL_17A_healthy_mean, MCP1_healthy_mean, MIP1a_healthy_mean, MIP1b_healthy_mean, TNF_alpha_healthy_mean)
+
+IBS <- c(GM_CSF_IBS_mean,IFN_gamma_IBS_mean, `IL_1 beta_IBS_mean`, IL_2_IBS_mean, IL_4_IBS_mean, IL_5_IBS_mean, IL_6_IBS_mean, IL_8_IBS_mean, IL_9_IBS_mean, IL_10_IBS_mean, IL_12p70_IBS_mean, IL_13_IBS_mean, IL_17A_IBS_mean, MCP1_IBS_mean, MIP1a_IBS_mean, MIP1b_IBS_mean, TNF_alpha_IBS_mean)
+
+IBD <- c(GM_CSF_IBD_mean,IFN_gamma_IBD_mean, `IL_1 beta_IBD_mean`, IL_2_IBD_mean, IL_4_IBD_mean, IL_5_IBD_mean, IL_6_IBD_mean, IL_8_IBD_mean, IL_9_IBD_mean, IL_10_IBD_mean, IL_12p70_IBD_mean, IL_13_IBD_mean, IL_17A_IBD_mean, MCP1_IBD_mean, MIP1a_IBD_mean, MIP1b_IBD_mean, TNF_alpha_IBD_mean)
+
+# create and view data frame of the cytokine means across healthy, IBS, and IBD patients
+df_cytokine_mean <- data.frame(healthy, IBS, IBD, row.names = cytokine_list)
+
+df_cytokine_mean2 <- tibble::rownames_to_column(df_cytokine_mean, "cytokines")
+# view(df_cytokine_mean2) to inspect the dataframe
+
+# turn df of summarized mean cytokines into matrix for plotting 
+matrix_cytokine_mean <- as.matrix(df_cytokine_mean)
+
+# make cytokine names R friendly
+cytokine_list <- gsub(" ", "", cytokine_list)
+cytokine_list <- gsub("-", "_", cytokine_list)
+
+# add formatted cytokine names to the cytokine column names of dataframe
+colnames(combined_df2)[1:17] <- cytokine_list
+combined_df2$patient_id <- cytokines_short_names
+combined_df2[is.na(combined_df2)] <- 0
+
+# make cytokine concentrations numeric
+combined_df2 <- combined_df2 %>% 
+  mutate_at(c(1:17), as.numeric)
+
+# group patients by IBD, IBS, or Healthy
+combined_df2$patient_id[grep("IBD", combined_df2$patient_id)] <- "IBD"
+combined_df2$patient_id[grep("IBS", combined_df2$patient_id)] <- "IBS"
+combined_df2$patient_id[grep("Healthy", combined_df2$patient_id)] <- "Healthy"
+
+# calculate average value of each cytokine across the patient conditions with the *aggregate* function
+avg_cytokines <- aggregate(cbind(GM_CSF,IFN_gamma,IL_1beta,IL_2,IL_4,IL_5,IL_6,IL_8,IL_9,IL_10,IL_12p70,IL_13,IL_17A,MCP1,MIP1a,MIP1b,TNF_alpha)~patient_id, data=combined_df2 , mean)
+
+# put aggregated patient ids as separate row names
+rownames(avg_cytokines) <- avg_cytokines[,1]
+avg_cytokines <- as.matrix(avg_cytokines[,-1])
+
+# plot boundaries
+lim <- 1.2*max(avg_cytokines)
+
+# a function to add arrows on the chart
+error.bar <- function(x, y, upper, lower=upper, length=0.02,...){
+  arrows(x,y+upper, x, y-lower, angle=90, code=3, length=length, ...)
+}
+
+# calculate standard deviation for each cytokine and patient condition :
+stdev <- aggregate(cbind(GM_CSF,IFN_gamma,IL_1beta,IL_2,IL_4,IL_5,IL_6,IL_8,IL_9,IL_10,IL_12p70,IL_13,IL_17A,MCP1,MIP1a,MIP1b,TNF_alpha)~patient_id , data=combined_df2 , sd)
+rownames(stdev) <- stdev[,1]
+stdev <- as.matrix(stdev[,-1]) * 1.96 / 10
+
+# expand margins of graph to accommodate legend and text below graph
+par(mar = c(7.1, 5.1, 4.1, 3.1))
+
+# add error bar and build bar graph
+cytokine_barplot <- barplot(avg_cytokines, beside=T, legend.text=T, col= c("green","red","blue") , ylim=c(0,lim), ylab="Cytokine Concentration pg/ml", las = 2)
+error.bar(cytokine_barplot,avg_cytokines, stdev)
+
+```
+
+## Read in and prep data
+
+```{r read in and prep data while keeping patient ids intact}
+
+# combine the data tables from each selected experiment
+combined_df2 <- rbind(data.frame(read_csv("Your/Saved/File1.csv")), data.frame(read_csv("Your/Saved/File2.csv")) , data.frame(read_csv("Your/Saved/File3.csv")))
+
+# create list of cytokine names for proper column labeling
+cytokine_list <- list("GM_CSF","IFN_gamma","IL_1beta","IL_2","IL_4","IL_5","IL_6","IL_8","IL_9","IL_10","IL_12p70","IL_13","IL_17A","MCP1","MIP1a","MIP1b","TNF_alpha")
+
+names(combined_df2)[1:17] <- c(cytokine_list)
+
+combined_df2[is.na(combined_df2)] <- 0
+
+# remove row with duplicate string
+df_rmdup <- dplyr::slice(combined_df2, c(-18, -30))
+
+# replace row values with average row values between the duplicates (ibd 100151 unclassified)
+df_rmdup[1, 1:17] <- (combined_df2[1, 1:17] + combined_df2[18, 1:17]) / 2
+
+# replace row values with average row values between the duplicates (healthy 100169)
+df_rmdup[12, 1:17] <- (combined_df2[12, 1:17] + combined_df2[30, 1:17]) / 2
+
+combined_df2 <- df_rmdup
+
+combined_df2 <- combined_df2 %>% filter(str_detect(patient_id, "ibs", negate = TRUE))
+
+```
+
+## Principal Component Analysis
+
+```{r PCA}
+
+pca_recipe <- recipe(~ ., data = combined_df2) %>%
+  update_role(patient_id, new_role = "id") %>%
+  step_normalize(all_predictors()) %>% # centres and scales all columns
+  step_pca(all_predictors()) # actual PCA
+pca_recipe
+
+pca_prep <- prep(pca_recipe)
+pca_prep
+
+tidied_pca <- tidy(pca_prep, 2)
+tidied_pca
+
+tidied_pca %>%
+  filter(component %in% paste0("PC", 1:17)) %>%
+  mutate(component = fct_inorder(component)) %>%
+  ggplot(aes(value, terms, fill = terms)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~component, nrow = 1) +
+  labs(y = NULL) +
+  theme_bw()
+
+# scree plot (displays amount of variance in the data explained by each component)
+sdev <- pca_prep$steps[[2]]$res$sdev
+percent_variation <- sdev^2 / sum(sdev^2)
+var_df <- data.frame(PC=paste0("PC",1:length(sdev)),
+                     var_explained=percent_variation,
+                     stringsAsFactors = FALSE)
+
+var_df %>%
+  mutate(PC = fct_inorder(PC)) %>%
+  ggplot(aes(x=PC,y=var_explained))+geom_col()
+
+```
+
+```{r scatterplot PCA}
+
+juice(pca_prep) %>%
+  ggplot(aes(PC1, PC2)) +
+  geom_point(aes(color = patient_id), alpha = 0.7, size = 2)
+
+```
+
+## UMAP
+
+```{r UMAP (no IBS) (no duplicates) (colored by patient ID with IBD and control/healthy labeling)}
+
+set.seed(5678)
+
+# to remove IBS patient samples
+umap_no_IBS_rmdup <- combined_df2 %>% filter(str_detect(patient_id, "ibs", negate = TRUE))
+
+umap_rec <- recipe(~., data = umap_no_IBS_rmdup) %>%
+  update_role(patient_id, new_role = "id") %>%
+  step_normalize(all_predictors()) %>%
+  step_umap(all_predictors())
+
+umap_prep <- prep(umap_rec)
+umap_prep
+
+juice(umap_prep) %>%
+  ggplot(aes(UMAP1, UMAP2, label = patient_id)) +
+  geom_point(aes(color = patient_id), alpha = 0.7, size = 8) +
+  geom_text(check_overlap = TRUE, hjust = "inward") +
+  labs(color = NULL)
+
+```
+
+```{r UMAP (no IBS) (no duplicates) (coloured by detailed disease type) (same seed as chunk above)}
+
+set.seed(5678)
+
+# to remove IBS patient samples
+umap_no_IBS_rmdup <- combined_df2 %>% filter(str_detect(patient_id, "ibs", negate = TRUE))
+
+# create list for use in the new column containing the disease phenotype
+disease_phenotype <- c("IBD_Unclassified_Active","IBD_UC_Remission", "IBD_CD_Remission", "IBD_CD_Remission", "Control", "Control", "Control", "Control", "Control", "Control", "IBD_UC_Active", "IBD_CD_Active", "IBD_UC_Active", "IBD_CD_Remission", "IBD_CD_Remission", "IBD_CD_Remission", "IBD_CD_Active", "IBD_UC_Remission", "IBD_UC_Remission", "IBD_UC_Remission", "IBD_CD_Remission", "Control", "Control")
+
+# add disease phenotype column to the existing dataframe
+umap_rmdup_disease_type <- cbind(umap_no_IBS_rmdup, disease_phenotype)
+
+# remove patient_id column to allow UMAP to run (so there aren't two qualitative columns in the dataframe since it may be problematic for UMAP)
+umap_rmdup_disease_type$patient_id <- NULL
+
+umap_rec <- recipe(~., data = umap_rmdup_disease_type) %>%
+  update_role(disease_phenotype, new_role = "id") %>%
+  step_normalize(all_predictors()) %>%
+  step_umap(all_predictors())
+
+umap_prep <- prep(umap_rec)
+umap_prep
+
+juice(umap_prep) %>%
+  ggplot(aes(UMAP1, UMAP2, label = disease_phenotype)) +
+  geom_point(aes(color = disease_phenotype), alpha = 0.7, size = 8) +
+  geom_text(check_overlap = TRUE, hjust = "inward") +
+  labs(color = NULL)
+
+```
+
+```{r UMAP (no IBS) (no duplicates) (coloured by active, remission, and control/healthy) (same seed as chunk above)}
+
+set.seed(5678)
+
+# to remove IBS patient samples
+umap_no_IBS_rmdup <- combined_df2 %>% filter(str_detect(patient_id, "ibs", negate = TRUE))
+
+# create list for use in the new column containing the disease phenotype
+disease_phenotype_rmdup <- c("IBD_Active","IBD_Remission", "IBD_Remission", "IBD_Remission", "Control", "Control", "Control", "Control", "Control", "Control", "IBD_Active", "IBD_Active", "IBD_Active", "IBD_Remission", "IBD_Remission", "IBD_Remission", "IBD_Active", "IBD_Remission", "IBD_Remission", "IBD_Remission", "IBD_Remission", "Control", "Control")
+
+# add disease phenotype column to the existing dataframe
+umap_rmdup_disease_type <- cbind(umap_no_IBS_rmdup, disease_phenotype_rmdup)
+
+# remove patient_id column to allow UMAP to run (so there aren't two qualitative columns in the dataframe since it may be problematic for UMAP)
+umap_rmdup_disease_type$patient_id <- NULL
+
+umap_rec <- recipe(~., data = umap_rmdup_disease_type) %>%
+  update_role(disease_phenotype_rmdup, new_role = "id") %>%
+  step_normalize(all_predictors()) %>%
+  step_umap(all_predictors())
+
+umap_prep <- prep(umap_rec)
+umap_prep
+
+juice(umap_prep) %>%
+  ggplot(aes(UMAP1, UMAP2, label = disease_phenotype_rmdup)) +
+  geom_point(aes(color = disease_phenotype_rmdup), alpha = 0.7, size = 8) +
+  geom_text(check_overlap = TRUE, hjust = "inward") +
+  labs(color = NULL)
+
+```
+
+```{r UMAP (no IBS) (no duplicates) (no remission) (coloured by control and active)}
+
+set.seed(1234)
+
+# to remove IBS patient samples
+umap_noibs_rmdup <- combined_df2 %>% filter(str_detect(patient_id, "ibs", negate = TRUE))
+
+# create list for use in the new column containing the disease phenotype
+disease_phenotype_rmdup <- c("IBD_Active","IBD_Remission", "IBD_Remission", "IBD_Remission", "Control", "Control", "Control", "Control", "Control", "Control", "IBD_Active", "IBD_Active", "IBD_Active", "IBD_Remission", "IBD_Remission", "IBD_Remission", "IBD_Active", "IBD_Remission", "IBD_Remission", "IBD_Remission", "IBD_Remission", "Control", "Control")
+
+# add disease phenotype column to the existing dataframe
+umap_rmdup_disease_noibs <- cbind(umap_noibs_rmdup, disease_phenotype_rmdup)
+
+# remove patient_id column to allow UMAP to run (so that there aren't two qualitative columns in the dataframe as it may be problematic for UMAP)
+umap_rmdup_disease_noibs$patient_id <- NULL
+
+umap_rmdup_phenotype_noremission <- umap_rmdup_disease_noibs %>% filter(str_detect(disease_phenotype_rmdup, "Remission", negate = TRUE))
+
+umap_rec <- recipe(~., data = umap_rmdup_phenotype_noremission) %>%
+  update_role(disease_phenotype_rmdup, new_role = "id") %>%
+  step_normalize(all_predictors()) %>%
+  step_umap(all_predictors())
+
+umap_prep <- prep(umap_rec)
+umap_prep
+
+juice(umap_prep) %>%
+  ggplot(aes(UMAP1, UMAP2, label = disease_phenotype_rmdup)) +
+  geom_point(aes(color = disease_phenotype_rmdup), alpha = 0.7, size = 8) +
+  geom_text(check_overlap = TRUE, hjust = "inward") +
+  labs(color = NULL)
+
+```
+
+```{r UMAP (no IBS) (no duplicates) (no remission) (colored by patient ID with IBD and control/healthy labeling) (same seed as chunk above)}
+
+set.seed(1234)
+
+# to remove IBS patient samples
+umap_no_IBS_rmdup <- combined_df2 %>%
+  filter(str_detect(patient_id, "ibs", negate = TRUE)) %>%
+  filter(!(row_number() %in% c(2, 3, 4, 14, 15, 16, 18, 19, 20, 21)))
+
+umap_rec <- recipe(~., data = umap_no_IBS_rmdup) %>%
+  update_role(patient_id, new_role = "id") %>%
+  step_normalize(all_predictors()) %>%
+  step_umap(all_predictors())
+
+umap_prep <- prep(umap_rec)
+umap_prep
+
+juice(umap_prep) %>%
+  ggplot(aes(UMAP1, UMAP2, label = patient_id)) +
+  geom_point(aes(color = patient_id), alpha = 0.7, size = 8) +
+  geom_text(check_overlap = TRUE, hjust = "inward") +
+  labs(color = NULL)
+
+```
+
+## XGBoost
+
+```{r xgboost of IBD active vs control (positve/negative) (duplicates removed)}
+
+# load required packages
+library(xgboost)
+
+# isolate "X" and "Y"
+# turn binary variable into binary numeric ("1,0") (what the model tries to predict based on the factors)
+y2 <- umap_rmdup_disease_noibs$disease_phenotype_rmdup <- ifelse(grepl("IBD", umap_rmdup_disease_noibs$disease_phenotype_rmdup), 1, 0)
+# select independent variables (select all columns except independent variable)
+x2 <- umap_rmdup_disease_noibs %>% dplyr::select(-disease_phenotype_rmdup)
+
+# setting the parameters
+# testing a binary logistic prediction model (IBD or not IBD) based on cytokine concentrations
+params_2 <- list(set.seed = 1502,
+               eval_metric = "auc",
+               objective = "binary:logistic")
+
+# label takes the input of the predictor ("Y" value)
+# nrounds = number of times the xgboost program runs
+# verbose = informs you of the progress as the program runs
+# data has to be taken as a matrix
+model_2 <- xgboost(data = as.matrix(x2),
+                 label = y2,
+                 params = params_2,
+                 nrounds = 20,
+                 verbose = 1)
+
+# shap values
+xg_boost_model_2 <- xgb.plot.shap(data = as.matrix(x2),
+                    model = model_2,
+                    col = "blue",
+                    pch = 10,
+                    top_n = 4)
+
+# shap summary plot across top four predictive cytokines
+xgb.plot.shap.summary(data = as.matrix(x2),
+                    model = model_2)
+
+```
+
+## ROC curve
+
+```{r ROC curve based on xgboost determination of IBD active vs Healthy}
+
+# load required packages
+library(pROC)
+
+# remove IBS patient samples and assign to new variable
+ROC_noibs <- combined_df2 %>%
+  filter(str_detect(patient_id, "ibs", negate = TRUE))
+
+# use empty list and subsequently a "for" loop to build a new column on the dataframe
+ROC_noibs_list <- list()
+
+# test MIP-1a threshold of less than "1.5 pg/ml" as positive predictor of IBD (shows simplified version of the threshold model of analysis)
+
+for (i in rownames(ROC_noibs)){
+
+  if (ROC_noibs[i,]$MIP1a <= 1.5){
+
+    # IBD
+    # add to new column of "ROC_noibs"
+    ROC_noibs_list <- append(ROC_noibs_list, "IBD")
+
+  } else {
+
+    # NOT IBD
+    # add to new column of "ROC_noibs"
+    ROC_noibs_list <- append(ROC_noibs_list, "Not_IBD")
+
+  }
+
+}
+
+ROC_noibs$xgboost_diagnosis <- ROC_noibs_list
+
+standard_diagnosis <- combined_df2 %>%
+  filter(str_detect(patient_id, "ibs", negate = TRUE)) %>%
+  mutate(across('patient_id', str_replace, "^healthy_.*$", 'Not_IBD')) %>%
+  mutate(across('patient_id', str_replace, "^ibd_.*$", 'IBD'))
+
+standard_diagnosis$patient_id <- ifelse(standard_diagnosis$patient_id == "IBD", 1, 0)
+ROC_noibs$xgboost_diagnosis <- ifelse(ROC_noibs$xgboost_diagnosis == "IBD", 1, 0)
+
+pROC_obj <- roc(as.numeric(standard_diagnosis$patient_id), as.numeric(ROC_noibs$xgboost_diagnosis),
+            smoothed = TRUE,
+            # arguments for ci
+            ci=TRUE, ci.alpha=0.9, stratified=FALSE,
+            # arguments for plot
+            plot=TRUE, auc.polygon=TRUE, max.auc.polygon=TRUE, grid=TRUE,
+            print.auc=TRUE, show.thres=TRUE)
+
+
+sens.ci <- ci.se(pROC_obj)
+plot(sens.ci, type="shape", col="lightblue")
+plot(sens.ci, type="bars")
+
+```
+
+```{r ROC Grid}
+
+# load required packages
+library(gridExtra)
+# library(pROC)
+
+# range from min to max of each cytokine gives thresholds to put in grid
+# use interval sizes based on data
+# modify min and max of sequences to use for thresholds for each cytokine
+# modify threshold direction as necessary
+
+threshold_more_GM_CSF <- seq(0, 1, by = 0.05)
+
+threshold_more_IFN_gamma <- seq(0, 8, by = 0.5)
+
+threshold_more_IL_1beta <- seq(0, 4, by = 0.2)
+
+threshold_less_IL_2 <- seq(0, 4, by = 0.2)
+
+threshold_less_IL_4 <- seq(0, 3, by = 0.1)
+
+threshold_more_IL_5 <- seq(0, 4, by = 0.2)
+
+threshold_more_IL_6 <- seq(0, 4, by = 0.2)
+
+threshold_more_IL_8 <- seq(0, 15, by = 0.5)
+
+threshold_more_IL_9 <- seq(0, 30, by = 2)
+
+threshold_more_IL_10 <- seq(0, 20, by = 1)
+
+threshold_more_IL_12p70 <- seq(0, 20, by = 1)
+
+threshold_more_IL_13 <- seq(0, 200, by = 10)
+
+threshold_more_IL_17A <- seq(0, 10, by = 0.5)
+
+threshold_more_MCP1 <- seq(0, 200, by = 10)
+
+threshold_less_MIP1a <- seq(0, 10, by = 0.5)
+
+threshold_more_MIP1b <- seq(0, 6, by = 0.25)
+
+threshold_more_TNF_alpha <- seq(0, 25, by = 1)
+
+
+temporary_ROC <- combined_df2 %>% 
+  filter(str_detect(patient_id, "ibs", negate = TRUE)) # to remove ibs patient samples
+
+# list of threshold lists specific to each cytokine
+# adjust threshold direction as necessary
+threshold_ROC_list <- mget(c("threshold_more_GM_CSF", "threshold_more_IFN_gamma", "threshold_more_IL_1beta", "threshold_less_IL_2", "threshold_less_IL_4", "threshold_more_IL_5", "threshold_more_IL_6", "threshold_more_IL_8", "threshold_more_IL_9", "threshold_more_IL_10", "threshold_more_IL_12p70", "threshold_more_IL_13", "threshold_more_IL_17A", "threshold_more_MCP1", "threshold_less_MIP1a", "threshold_more_MIP1b", "threshold_more_TNF_alpha"))
+
+# create empty plot list for when ROC curves need to be plotted in a grid using the package "gridExtra"
+plot_ROC_list <- list() 
+
+# "c" = master "for" loop for highest info variable (threshold direction, and cytokine name)
+for(c in names(threshold_ROC_list)){
+  
+  # test to check code integrity
+  print(c)
+
+# isolates cytokine name in variable
+assign("threshold_list_shortname", substring(c, 16), envir = .GlobalEnv)
+
+# isolates threshold direction in variable
+assign("threshold_direction", substr(c, start = 11, stop = 14), envir = .GlobalEnv)
+
+# makes empty dataframe with 23 rows to allow "cbind" to append the lists generated from the previous for loop thereby generating a large dataframe for each cytokine
+assign(paste0("threshold_dataframe_", threshold_list_shortname), data.frame(matrix(ncol = 0, nrow = 23)), envir = .GlobalEnv)
+
+# "l" = "for" loop for thresholds
+for(l in threshold_ROC_list[[c]]){
+
+assign(paste0("temporary_ROC_list_", as.character(l)), list())
+
+# "i" = "for" loop for concentrations down the column for the specific cytokine
+for (i in temporary_ROC[[threshold_list_shortname]]){
+  
+  # test 2 to check code integrity
+  print("test2")
+  print(i)
+  
+  if (i <= l && threshold_direction == "less"){
+    
+    # IBD
+    # add to new column of ROC_noibs
+    assign(paste0("temporary_ROC_list_", as.character(l)), append(get(paste0("temporary_ROC_list_", as.character(l))), "IBD"))
+    
+  } else if (i <= l && threshold_direction == "more"){
+    
+    # NOT IBD
+    # add to new column of ROC_noibs
+    assign(paste0("temporary_ROC_list_", as.character(l)), append(get(paste0("temporary_ROC_list_", as.character(l))), "Not_IBD"))
+    
+  } else if (i > l && threshold_direction == "more"){
+    
+    # IBD
+    # add to new column of ROC_noibs
+    assign(paste0("temporary_ROC_list_", as.character(l)), append(get(paste0("temporary_ROC_list_", as.character(l))), "IBD"))
+    
+  } else if (i > l && threshold_direction == "less"){
+  
+    # NOT IBD
+    # add to new column of ROC_noibs
+    assign(paste0("temporary_ROC_list_", as.character(l)), append(get(paste0("temporary_ROC_list_", as.character(l))), "Not_IBD"))
+    
+}
+
+# append each threshold as a new column to the dataframe for the specific cytokine in the "for" loop (in the end there should be 17 dataframes for the 17 cytokines with each column being the thresholds in order and the rows being the sample diagnoses based on the threshold model of the current cytokine)  
+
+}
+
+# make dataframe with each of the threshold lists (should have # of columns = thresholds and # rows = 23 patient samples)
+assign(paste0("threshold_dataframe_", threshold_list_shortname), cbind(get(paste0("threshold_dataframe_", threshold_list_shortname)), t(as.data.frame((get(paste0("temporary_ROC_list_", as.character(l)))), row.names = as.character(l)))), envir = .GlobalEnv)
+   
+}
+
+# make dataframe of thresholds against patient samples into a binary format ("1" = IBD, "0" = Not_IBD)
+temporary_binary_threshold_model <- data.frame(sapply(get(paste0("threshold_dataframe_", threshold_list_shortname)), function(x) ifelse(x == "IBD", 1, 0)))
+
+# set proper column names and row names specific to the dataframes generated for each cytokine
+row.names(temporary_binary_threshold_model) <- NULL
+colnames(temporary_binary_threshold_model) <- colnames(get(paste0("threshold_dataframe_", threshold_list_shortname)))
+
+# makes empty list specific to the cytokine to be filled in the next step with AUCs obtained from the ROC object  
+assign(paste0("auc_", threshold_list_shortname), list(), envir = .GlobalEnv)
+
+# use "roc" function to find AUCs for each threshold tested for each cytokine from the "temporary_binary_threshold_model" object
+
+for (m in colnames(temporary_binary_threshold_model)){
+  
+  ROC_threshold_model <- roc(as.numeric(standard_diagnosis$patient_id),
+                             as.numeric(temporary_binary_threshold_model[[m]]),
+                             smoothed = TRUE,
+                             # arguments for ci
+                             ci=TRUE, ci.alpha=0.9, stratified=FALSE)
+  
+# extract AUCs from "pROC_obj" and store in list(named according to cytokine) as "for" loop continues
+# from each list retrieve the highest AUC value and print the threshold value (column) responsible for it and store it in another variable specific to the cytokine
+# at the end there should be 17 variables for 17 cytokines each containing the highest AUC and the threshold that corresponds to it
+# print the 17 ROC curves that the 17 AUCs represent and facet wrap them into a neat grid
+
+# calculates AUCs after generation of the roc object and keeps appending the results to the AUC list as the for loop continues
+assign(paste0("auc_", threshold_list_shortname), append(get(paste0("auc_", threshold_list_shortname)), auc(ROC_threshold_model)))
+
+}
+
+# "unlist" function used to turn the lists into easily manipulable vectors
+
+# if one threshold specific to the cytokine holds the maximum auc value the first part of the if statement is executed
+if (length(which(max(unlist(get(paste0("auc_", threshold_list_shortname)))) == unlist(get(paste0("auc_", threshold_list_shortname))))) == 1){
+
+# select threshold that has the highest auc value for the specific cytokine and use it to subset the thresholds model dataframe
+assign(paste0("threshold_maxauc_", threshold_list_shortname), temporary_binary_threshold_model[which(max(unlist(get(paste0("auc_", threshold_list_shortname)))) == unlist(get(paste0("auc_", threshold_list_shortname))))], envir = .GlobalEnv)
+
+} else {
+
+# if multiple thresholds specific to the cytokine hold the maximum auc value the sample function randomly chooses a threshold out of them to use for subsetting the thresholds model dataframe
+assign(paste0("threshold_maxauc_", threshold_list_shortname), temporary_binary_threshold_model[sample(which(max(unlist(get(paste0("auc_", threshold_list_shortname)))) == unlist(get(paste0("auc_", threshold_list_shortname)))))], envir = .GlobalEnv)
+  
+}
+
+## NOTE if there are multiple max auc values for a threshold, the code picks a random AUC out of those multiple max AUC values using "sample()"
+
+# make ROC curve for the threshold that maximizes the AUC for the specific cytokine in the threshold model
+ROC_threshold_maxauc_model <- roc(as.numeric(standard_diagnosis$patient_id), 
+                                  as.numeric(get(paste0("threshold_maxauc_", threshold_list_shortname))[[1]]),
+                                  smoothed = TRUE,
+                                  # arguments for ci
+                                  ci=TRUE, ci.alpha=0.9, stratified=FALSE,
+                                  # arguments for plot
+                                  plot=FALSE)
+
+# plots the ROC curve specific to the cytokine with the optimal threshold (determined by the max AUC generated across the list of thresholds specific to the cytokine)
+plot_ROC_list[[c]] <- plot(ROC_threshold_maxauc_model, main = paste0("Optimal ROC for ", threshold_list_shortname), auc.polygon=TRUE, max.auc.polygon=TRUE, grid=TRUE, print.auc=FALSE, show.thres=TRUE)
+
+sens.ci2 <- ci.se(ROC_threshold_maxauc_model)
+plot(sens.ci2, type="shape", col="lightblue")
+plot(sens.ci2, type="bars")
+
+# prints the optimal threshold for the specific cytokine based on AUCs generated from the "roc" function
+print(paste0("The optimal threshold for ", threshold_list_shortname, " is: ", colnames(get(paste0("threshold_maxauc_", threshold_list_shortname)))))
+
+# get the AUC value from the "ROC" object
+auc_value <- round(auc(ROC_threshold_maxauc_model), 3)
+
+# add the AUC value on the right-hand side of the plot
+text(x = 0.25, y = 0.4, labels = paste0("AUC: ", auc_value), col = "black", cex = 1.5, pos = 4)
+
+}
+
+# convert each "ROC" object to a "ggplot" object using "ggroc"
+ggplot_list <- lapply(plot_ROC_list, ggroc)
+
+# convert each "ggplot" object to a "grob" using "ggplotGrob"
+grob_list <- lapply(ggplot_list, ggplotGrob)
+
+# set up the PDF file
+pdf("Your/ROC/Grid/File.pdf", width = 10, height = 10)
+
+# create the grid of ROC plots
+grid.arrange(grobs = grob_list, ncol = 4)
+
+# close the PDF file
+dev.off()
+
+```

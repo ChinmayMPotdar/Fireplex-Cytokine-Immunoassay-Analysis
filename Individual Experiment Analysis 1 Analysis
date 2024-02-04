@@ -1,0 +1,259 @@
+---
+title: "Fireplex Analysis Pipeline (June 9 2022)"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# clear environment
+rm()
+
+# load required R packages
+library(tidyverse)
+library(janitor)
+library(lubridate)
+library(tidymodels)
+library(embed)
+
+```
+
+##########################################################################################################
+Part 1: Fireplex Analysis Workbench (FAW) software process
+##########################################################################################################
+
+1. Load FCS files and Set Up Experiment Settings
+- Click "box with arrow going into it" icon top left corner of main Fireplex Analysis Workbench window
+- Select all the .fcs files for the experiment
+- Then the "Probe Definition: Panel Barcode" pop up opens, either type "243549" in as barcode, or select "Select from PLX builtins & history" then find and select "[18 probes] ab243549 Human Key Cytokines - Immunoassay Panel" from the list
+- Then select cytometer settings (these can be verified by searching the text of any of the .fcs files):
+  Time = Time
+  Width = FSC-W
+  SSC = SSC-H
+  FSC = FSC-H
+  green = FL1-H (FITC) 
+  yellow = FL2-H (PE) 
+  red = FL10-H (PerCP) 
+  red2 = FL10-H        
+
+- In the plate view on the left panel - drag to select all wells with any colour (corresponds to wells from experiment)
+- Click the "box make of dotted line" icon top left corner of Fireplex Analysis Workbench window to make this an experiment
+- Select the dilution series wells (usually A1 A2 ... H1 H2) and right click then select "Dilution Series" and set dilution factor to 3.0 (this is default and also what the dilution is in the protocol), and "Number of repeats" to 2 (will auto detect based on shape of rectagle selected), and check "Set dilution for regular samples", and set "In-well dilution of regular samples" to 0.25
+- Unselect all wells and select the "StdCurves" tab at the top of the right hand panel and screenshot the standard curves for the record
+
+2. Export Cytokine Concentration to CSV
+- Click the "box with arrow exiting it" icon and set filepath and filename, then export as .csv file
+- Select all checks in all 3 boxes in next dialogue window
+
+##########################################################################################################
+Part 2: Open, clean, and save data in R
+##########################################################################################################
+Once an experiment data is exported from FAW as a .csv then step 1 does not need to be repeated for that experiment, and the data can be further worked through the pipeline below
+
+1. First, a function to clean up the data, combining the duplicate wells in to a mean value and labelling the rows by patient ID
+```{r data cleaning functions}
+
+## set working directory manually in console according to project directory
+# setwd("C:/Chinmay/Grad School Info/Queens MSc/Lab Research/Fireplex/Data/June 9 2022 fireplex")
+
+# a function to summarize a pair of rows that are from the same sample/patient and return:
+# the mean of the values if two, but if only one just return that value, and if no values return 'NA'
+summarize_patient <- function(input_data, patient_id, well_id_1, well_id_2) {
+  
+  # pull out the column labels (and discard the "well" label as it is no longer needed)
+  column_labels <- input_data |>
+  dplyr::select(2:18) |>
+  colnames()
+
+  input_data |>
+    dplyr::filter(Well %in% c(well_id_1, well_id_2)) |> # filter to just this patient's rows
+    dplyr::select(2:18) |> # remove the Well column so can make numeric for fill step
+    sapply(as.numeric) |> # make all the columns numeric
+    data.frame() |> # now turn into a dataframe so can use the fill function
+    fill(everything(), .direction = "downup") |> # fills the empty values with the value above or below
+    dplyr::summarise(across(where(is.numeric), mean)) |> # mean of the values in each column
+    setNames(column_labels) |> # relabel the columns properly
+    mutate(patient_id = patient_id) # add a patient_id column
+}
+
+```
+
+2. Load in .csv file data for each experiment and label it by patient ID and patient condition
+(each new experiment needs a new chunk)
+```{r June 9 2022 experiment}
+
+# import and change "NaN" values to "NA"
+june_9_2022 <- read_csv("June 9 2022 dataset.csv", na = "NaN")
+
+# subset the data to just the relevant patient sample results
+df_june_9_2022 <- june_9_2022 %>%
+  dplyr::select(1, 4:20) %>% # select only the relevant columns that contain concentrations in pg/mL
+  dplyr::slice(1:27) %>% # remove the extra experimental data below the main table
+  dplyr::filter(Well %in% c("C03", "C04", "D03", "D04", "E03", "E04")) # filter to only the relevant rows (patient samples)
+
+healthy_100254_list <- summarize_patient(
+  input_data = df_june_9_2022,
+  patient_id = "healthy_100254",
+  well_id_1 = "C03",
+  well_id_2 = "C04")
+
+ibs_100195_list <- summarize_patient(
+  input_data = df_june_9_2022,
+  patient_id = "ibs_100195",
+  well_id_1 = "D03",
+  well_id_2 = "D04")
+
+healthy_100155_list <- summarize_patient(
+  input_data = df_june_9_2022,
+  patient_id = "healthy_100155",
+  well_id_1 = "E03",
+  well_id_2 = "E04")
+
+column_labels <- df_june_9_2022 |>
+  dplyr::select(2:18) |>
+  mutate(patient_id = NA) |>
+  colnames()
+  
+june_9_2022_cytokines_df <- do.call(cbind, Map(rbind, healthy_100254_list, ibs_100195_list, healthy_100155_list))
+colnames(june_9_2022_cytokines_df) <- column_labels
+
+```
+
+``` {r save progress in data table}
+
+cytokines_june_9_2022_processed <- as.data.frame(june_9_2022_cytokines_df)
+
+# export data at this stage
+write_csv(cytokines_june_9_2022_processed, "C:/Chinmay/Grad School Info/Queens MSc/Lab Research/R studio/cytokines2.csv")
+
+# can run the line below to re-start at this point (also need to run first (initialization) chunk to load libraries)
+# cytokines <- read_csv("/abovefilepath/cytokines2.csv")
+
+```
+
+##########################################################################################################
+Part 3: Get idea Of individual experiment data
+##########################################################################################################
+
+``` {r reshape data}
+
+# simple example plot
+ggplot(cytokines_june_9_2022_processed, aes(x = patient_id, y = `GM-CSF (pg/mL)`)) + 
+  geom_bar(stat = "identity")
+
+# human readable patient ID labels
+cytokines_short_names <- c("Healthy 1", "IBS 1", "Healthy 2")
+
+# reshape data for plotting
+cytokines_longer <- cytokines_june_9_2022_processed|>
+  mutate(patient_id = cytokines_short_names) |>
+  pivot_longer(!patient_id, values_to = "pg/mL") |>
+  mutate(name = str_sub(name, end = -9)) # removes the " (pg/mL)" from name column
+
+# change "NA" values in "pg/ml" column to "0"
+cytokines_longer$`pg/mL`[which(is.na(cytokines_longer$`pg/mL`))] <- 0
+
+# make "pg/ml" column values numeric rather than character (so Y-axis for data values are on continuous scale rather than discrete)
+cytokines_longer$`pg/mL` <- as.numeric(cytokines_longer$`pg/mL`)
+
+```
+
+``` {r barplot}
+
+# create list of cytokines to use in "for" loop
+cytokine_list <- list("GM-CSF","IFN-gamma","IL-1 beta","IL-2","IL-4","IL-5","IL-6","IL-8","IL-9","IL-10","IL-12p70","IL-13","IL-17A","MCP1","MIP1a","MIP1b","TNF-alpha")
+
+for(m in cytokine_list) {
+  
+# make names of cytokines R friendly  
+cytokine_name_fixed <- gsub("-", "_", m)
+
+# subset healthy patients
+assign(paste0(cytokine_name_fixed, "_healthy_intermediate"), cytokines_longer[grep("Healthy", cytokines_longer$patient_id), ])
+
+# remove rows that contain values of "0" for healthy patients
+assign(paste0(cytokine_name_fixed, "_healthy_intermediate"), get(paste0(cytokine_name_fixed, "_healthy_intermediate"))[apply(get(paste0(cytokine_name_fixed, "_healthy_intermediate"))!=0, 1, all),])  
+
+# subset by cytokine for healthy patients
+assign(paste0(cytokine_name_fixed, "_healthy_mean"), mean(get(paste0(cytokine_name_fixed, "_healthy_intermediate"))$`pg/mL`[grep(m, get(paste0(cytokine_name_fixed, "_healthy_intermediate"))$name)]), envir = .GlobalEnv)
+
+
+# subset IBS patients
+assign(paste0(cytokine_name_fixed, "_IBS_intermediate"), cytokines_longer[grep("IBS", cytokines_longer$patient_id), ])
+
+# remove rows that contain values of "0" for IBS patients
+assign(paste0(cytokine_name_fixed, "_IBS_intermediate"), get(paste0(cytokine_name_fixed, "_IBS_intermediate"))[apply(get(paste0(cytokine_name_fixed, "_IBS_intermediate"))!=0, 1, all),])  
+
+# subset by cytokine for IBS patients
+assign(paste0(cytokine_name_fixed, "_IBS_mean"), mean(get(paste0(cytokine_name_fixed, "_IBS_intermediate"))$`pg/mL`[grep(m, get(paste0(cytokine_name_fixed, "_IBS_intermediate"))$name)]), envir = .GlobalEnv)
+
+}
+patientcondition_list <- c("healthy", "IBS")
+
+# create lists of mean cytokine levels obtained from the for loop and separated by patient type (healthy, IBS, and IBD)
+healthy <- c(GM_CSF_healthy_mean,IFN_gamma_healthy_mean, `IL_1 beta_healthy_mean`, IL_2_healthy_mean, IL_4_healthy_mean, IL_5_healthy_mean, IL_6_healthy_mean, IL_8_healthy_mean, IL_9_healthy_mean, IL_10_healthy_mean, IL_12p70_healthy_mean, IL_13_healthy_mean, IL_17A_healthy_mean, MCP1_healthy_mean, MIP1a_healthy_mean, MIP1b_healthy_mean, TNF_alpha_healthy_mean)
+
+IBS <- c(GM_CSF_IBS_mean,IFN_gamma_IBS_mean, `IL_1 beta_IBS_mean`, IL_2_IBS_mean, IL_4_IBS_mean, IL_5_IBS_mean, IL_6_IBS_mean, IL_8_IBS_mean, IL_9_IBS_mean, IL_10_IBS_mean, IL_12p70_IBS_mean, IL_13_IBS_mean, IL_17A_IBS_mean, MCP1_IBS_mean, MIP1a_IBS_mean, MIP1b_IBS_mean, TNF_alpha_IBS_mean)
+
+# create and view data frame of the cytokine means across healthy and IBS patients
+df_cytokine_mean <- data.frame(healthy, IBS, row.names = cytokine_list)
+df_cytokine_mean2 <- tibble::rownames_to_column(df_cytokine_mean, "cytokines")
+# view(df_cytokine_mean2)
+
+# make cytokine names R friendly
+cytokine_list <- gsub(" ", "", cytokine_list)
+cytokine_list <- gsub("-", "_", cytokine_list)
+
+# add formatted cytokine names to the cytokine column names of dataframe
+colnames(cytokines_june_9_2022_processed)[1:17] <- cytokine_list
+cytokines_june_9_2022_processed$patient_id <- cytokines_short_names
+cytokines_june_9_2022_processed[is.na(cytokines_june_9_2022_processed)] <- 0
+# cytokines_oct_7_2022_processed$patient_id
+
+# make cytokine concentrations numeric
+cytokines_june_9_2022_processed <- cytokines_june_9_2022_processed %>% 
+  mutate_at(c(1:17), as.numeric)
+
+# group patients by IBS or Healthy
+cytokines_june_9_2022_processed$patient_id[grep("IBS", cytokines_june_9_2022_processed$patient_id)] <- "IBS"
+cytokines_june_9_2022_processed$patient_id[grep("Healthy", cytokines_june_9_2022_processed$patient_id)] <- "Healthy"
+
+# calculate average value of each cytokine across the patient conditions with the "aggregate" function
+avg_cytokines <- aggregate(cbind(GM_CSF,IFN_gamma,IL_1beta,IL_2,IL_4,IL_5,IL_6,IL_8,IL_9,IL_10,IL_12p70,IL_13,IL_17A,MCP1,MIP1a,MIP1b,TNF_alpha)~patient_id, data=cytokines_june_9_2022_processed , mean)
+
+# put aggregated patient IDs as separate row names
+rownames(avg_cytokines) <- avg_cytokines[,1]
+avg_cytokines <- as.matrix(avg_cytokines[,-1])
+
+# plot boundaries
+lim <- 1.2*max(avg_cytokines)
+
+# a function to add arrows on the chart
+error.bar <- function(x, y, upper, lower=upper, length=0.02,...){
+  arrows(x,y+upper, x, y-lower, angle=90, code=3, length=length, ...)
+}
+
+# calculate standard deviation for each cytokine and patient condition
+stdev <- aggregate(cbind(GM_CSF,IFN_gamma,IL_1beta,IL_2,IL_4,IL_5,IL_6,IL_8,IL_9,IL_10,IL_12p70,IL_13,IL_17A,MCP1,MIP1a,MIP1b,TNF_alpha)~patient_id , data=cytokines_june_9_2022_processed , sd)
+rownames(stdev) <- stdev[,1]
+stdev <- as.matrix(stdev[,-1]) * 1.96 / 10
+
+# expand margins of graph to accommodate legend and text below graph
+par(mar = c(7.1, 5.1, 4.1, 3.1))
+
+# add error bars and build bar graph
+cytokine_barplot <- barplot(avg_cytokines, beside=T, legend.text=T, col= c("green","red"), ylim=c(0,lim), ylab="Cytokine Concentration pg/ml", las = 2, )
+error.bar(cytokine_barplot,avg_cytokines, stdev)
+
+```
+
+##########################################################################################################
+Appendix 1: FIRST TIME SET UP for Firecode, also referred to as Fireplex Analysis Workbench (FAW)
+##########################################################################################################
+To run Firecode the first time:
+1. Download the firecode.jar and firecode.jnlp files to a folder
+2. Save a script to the same folder with the filename “firecode.sh” containing only this text:
+`java -cp firecode.jar com.firefly.firecode.FireCode`
+3. run `sudo chmod 755 firecode.sh` in terminal

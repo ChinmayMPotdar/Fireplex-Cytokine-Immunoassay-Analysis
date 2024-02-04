@@ -52,11 +52,11 @@ Part 2: Open, clean, and save data in R
 ##########################################################################################################
 Once an experiment data is exported from FAW as a .csv then step 1 does not need to be repeated for that experiment, and the data can be further worked through the pipeline below
 
-1. First, a function to clean up the data, combining the duplicate wells in to a mean value and labelling the rows by patient ID
+1. First, a function to clean up the data, combining the duplicate wells into a mean value and labelling the rows by patient ID
 ```{r data cleaning functions}
 
 ## set working directory manually in console according to project directory
-# setwd("C:/Chinmay/Grad School Info/Queens MSc/Lab Research/Fireplex/Data/June 9 2022 fireplex")
+# setwd("Your/Preferred/Project/Directory")
 
 # a function to summarize a pair of rows that are from the same sample/patient and return:
 # the mean of the values if two, but if only one just return that value, and if no values return 'NA'
@@ -126,10 +126,10 @@ colnames(june_9_2022_cytokines_df) <- column_labels
 cytokines_june_9_2022_processed <- as.data.frame(june_9_2022_cytokines_df)
 
 # export data at this stage
-write_csv(cytokines_june_9_2022_processed, "C:/Chinmay/Grad School Info/Queens MSc/Lab Research/R studio/cytokines2.csv")
+write_csv(cytokines_june_9_2022_processed, "Your/Preferred/Directory.csv")
 
 # can run the line below to re-start at this point (also need to run first (initialization) chunk to load libraries)
-# cytokines <- read_csv("/abovefilepath/cytokines2.csv")
+# cytokines <- read_csv("/Abovefilepath/Yourfile.csv")
 
 ```
 

@@ -209,7 +209,6 @@ df_rmdup[1, 1:17] <- (combined_df2[1, 1:17] + combined_df2[18, 1:17]) / 2
 
 # replace row values with average row values between the duplicates
 df_rmdup[12, 1:17] <- (combined_df2[12, 1:17] + combined_df2[30, 1:17]) / 2
-
 combined_df2 <- df_rmdup
 
 combined_df2 <- combined_df2 %>% filter(str_detect(patient_id, "ibs", negate = TRUE))

@@ -194,7 +194,7 @@ error.bar(cytokine_barplot,avg_cytokines, stdev)
 # combine the data tables from each selected experiment
 combined_df2 <- rbind(data.frame(read_csv("Your/Saved/File1.csv")), data.frame(read_csv("Your/Saved/File2.csv")) , data.frame(read_csv("Your/Saved/File3.csv")))
 
-# create list of cytokine names for proper column labeling
+# create list of cytokine names for proper column labelling
 cytokine_list <- list("GM_CSF","IFN_gamma","IL_1beta","IL_2","IL_4","IL_5","IL_6","IL_8","IL_9","IL_10","IL_12p70","IL_13","IL_17A","MCP1","MIP1a","MIP1b","TNF_alpha")
 
 names(combined_df2)[1:17] <- c(cytokine_list)
@@ -204,15 +204,38 @@ combined_df2[is.na(combined_df2)] <- 0
 # remove row with duplicate string
 df_rmdup <- dplyr::slice(combined_df2, c(-18, -30))
 
-# replace row values with average row values between the duplicates (ibd 100151 unclassified)
+# replace row values with average row values between the duplicates
 df_rmdup[1, 1:17] <- (combined_df2[1, 1:17] + combined_df2[18, 1:17]) / 2
 
-# replace row values with average row values between the duplicates (healthy 100169)
+# replace row values with average row values between the duplicates
 df_rmdup[12, 1:17] <- (combined_df2[12, 1:17] + combined_df2[30, 1:17]) / 2
 
 combined_df2 <- df_rmdup
 
 combined_df2 <- combined_df2 %>% filter(str_detect(patient_id, "ibs", negate = TRUE))
+
+# mutate to add group column
+combined_df2 <- combined_df2 %>%
+  mutate(Group = ifelse(substr(patient_id, 1, 3) == "ibd", "IBD", "Healthy"))
+
+# reshape data into long format
+combined_df2_long <- combined_df2 %>%
+  pivot_longer(cols = 1:17, names_to = "Cytokine", values_to = "Concentration")
+
+# calculate average cytokine concentrations for IBD and Healthy groups separately
+average_concentrations <- combined_df2_long %>%
+  group_by(Group, Cytokine) %>%
+  summarise(Concentration = mean(Concentration, na.rm = TRUE)) %>%
+  ungroup()
+
+# create grouped bar plot
+ggplot(average_concentrations, aes(x = Cytokine, y = Concentration, fill = Group)) +
+  geom_bar(stat = "identity", position = position_dodge2(width = 0.9)) +
+  labs(title = "Average Cytokine Concentrations in IBD and Healthy Groups",
+       x = "Cytokine",
+       y = "Average Concentration") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 ```
 

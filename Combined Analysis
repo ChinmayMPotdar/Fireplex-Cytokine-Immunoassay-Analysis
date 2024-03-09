@@ -213,6 +213,8 @@ combined_df2 <- df_rmdup
 
 combined_df2 <- combined_df2 %>% filter(str_detect(patient_id, "ibs", negate = TRUE))
 
+## barplot for average raw cytokine concentration values across IBD and healthy groups
+
 # mutate to add group column
 combined_df2 <- combined_df2 %>%
   mutate(Group = ifelse(substr(patient_id, 1, 3) == "ibd", "IBD", "Healthy"))
@@ -227,12 +229,146 @@ average_concentrations <- combined_df2_long %>%
   summarise(Concentration = mean(Concentration, na.rm = TRUE)) %>%
   ungroup()
 
-# create grouped bar plot
-ggplot(average_concentrations, aes(x = Cytokine, y = Concentration, fill = Group)) +
-  geom_bar(stat = "identity", position = position_dodge2(width = 0.9)) +
-  labs(title = "Average Cytokine Concentrations in IBD and Healthy Groups",
+# calculate standard error of cytokine concentrations for each group
+error_concentrations <- combined_df2_long %>%
+  group_by(Group, Cytokine) %>%
+  summarise(Standard_Error = sd(Concentration, na.rm = TRUE) / sqrt(n()), .groups = "drop") %>%
+  ungroup()
+
+# merge average concentrations and error data
+merged_data <- merge(average_concentrations, error_concentrations, by = c("Group", "Cytokine"))
+
+replacement_names <- c("GM_CSF" = "GM-CSF", "IFN_gamma" = "IFN-γ", "IL_10" = "IL-10", "IL_12p70" = "IL-12p70", "IL_13" = "IL-13", "IL_17A" = "IL-17A", "IL_1beta" = "IL-1β", "IL_2" = "IL-2", "IL_4" = "IL-4", "IL_5" = "IL-5", "IL_6" = "IL-6", "IL_8" = "IL-8", "IL_9" = "IL-9", "MCP1" = "MCP1", "MIP1a" = "MIP-1α", "MIP1b" = "MIP-1β", "TNF_alpha" = "TNF-α")
+
+merged_data$Cytokine <- str_replace_all(merged_data$Cytokine, replacement_names)
+
+# create grouped bar plot with error bars
+ggplot(merged_data, aes(x = Cytokine, y = Concentration, fill = Group)) +
+  geom_bar(stat = "identity", position = position_dodge(0.8), width = 0.7) +
+  geom_errorbar(aes(ymin = Concentration - Standard_Error, ymax = Concentration + Standard_Error),
+                position = position_dodge(0.8),
+                width = 0.25) +
+  labs(title = NULL,
        x = "Cytokine",
-       y = "Average Concentration") +
+       y = "Average Concentration (pg/ml)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+## bar plot for average raw cytokine concentration values across IBD active, IBD remission, and healthy groups
+
+# add disease state labels
+disease_phenotype1 <- c("IBD_Unclassified_Active","IBD_UC_Remission", "IBD_CD_Remission", "IBD_CD_Remission", "Control", "Control", "Control", "Control", "Control", "Control", "IBD_UC_Active", "IBD_CD_Active", "IBD_UC_Active", "IBD_CD_Remission", "IBD_CD_Remission", "IBD_CD_Remission", "IBD_CD_Active", "IBD_UC_Remission", "IBD_UC_Remission", "IBD_UC_Remission", "IBD_CD_Remission", "Control", "Control")
+
+concentration_activity <- cbind(combined_df2, disease_phenotype1)
+
+# melt the data to long format
+combined_df2_long_activity <- concentration_activity %>%
+  pivot_longer(cols = -c(patient_id, disease_phenotype1, Group),
+               names_to = "Cytokine",
+               values_to = "Concentration") %>%
+  mutate(broad_disease_state = case_when(
+    grepl("Active", disease_phenotype1) ~ "Active",
+    grepl("Remission", disease_phenotype1) ~ "Remission",
+    disease_phenotype1 == "Control" ~ "Control"
+  ))
+
+combined_df2_long_activity$Cytokine <- str_replace_all(combined_df2_long_activity$Cytokine, replacement_names)
+
+# calculate average cytokine concentrations and standard error for each broad disease state and cytokine
+average_concentrations_activity <- combined_df2_long_activity %>%
+  group_by(broad_disease_state, Cytokine) %>%
+  summarise(mean_concentration = mean(Concentration),
+            sd_concentration = sd(Concentration) / sqrt(n()),
+            .groups = "drop") %>%
+  ungroup()
+
+# plot grouped bar plot with error bars
+ggplot(average_concentrations_activity, aes(x = Cytokine, y = mean_concentration, fill = broad_disease_state)) +
+  geom_bar(stat = "identity", position = position_dodge(0.8), width = 0.7) +
+  geom_errorbar(aes(ymin = mean_concentration - sd_concentration, ymax = mean_concentration + sd_concentration),
+                position = position_dodge(0.8),
+                width = 0.25) +
+  labs(title = NULL,
+       x = "Cytokine",
+       y = "Average Concentration (pg/ml)",
+       fill = "Disease Activity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+## barplot for scaled average cytokine concentration values across IBD and healthy groups
+
+# define function to scale values between 0 and 1
+scale_values <- function(x){(x-min(x))/(max(x)-min(x))}
+
+# scale average concentrations for each cytokine between 0 and 1
+# NOTE: The individual values are scaled for each cytokine between 0 and 1 and then the average of the scaled values are calculated based around cytokine and IBD/healthy groups for plotting
+average_scaled_concentrations <- combined_df2_long %>%
+  group_by(Cytokine) %>%
+  mutate(Scaled_Concentration = as.numeric(scale_values(Concentration))) %>%
+  ungroup() %>%
+  group_by(Group, Cytokine) %>%
+  summarise(Scaled_Concentration = mean(Scaled_Concentration, na.rm = TRUE)) %>%
+  ungroup()
+
+# calculate standard error of the scaled cytokine concentrations for each group
+error_scaled_concentrations <- combined_df2_long %>%
+  group_by(Cytokine) %>%
+  mutate(Scaled_Concentration = as.numeric(scale_values(Concentration))) %>%
+  ungroup() %>%
+  group_by(Group, Cytokine) %>%
+  summarise(Scaled_Standard_Error = sd(Scaled_Concentration, na.rm = TRUE) / sqrt(n()), .groups = "drop") %>%
+  ungroup()
+
+# merge scaled average concentrations and scaled error data
+merged_scaled_data <- merge(average_scaled_concentrations, error_scaled_concentrations, by = c("Group", "Cytokine"))
+
+merged_scaled_data$Cytokine <- str_replace_all(merged_scaled_data$Cytokine, replacement_names)
+
+# create grouped bar plot with error bars
+ggplot(merged_scaled_data, aes(x = Cytokine, y = Scaled_Concentration, fill = Group)) +
+  geom_bar(stat = "identity", position = position_dodge(0.8), width = 0.7) +
+  geom_errorbar(aes(ymin = Scaled_Concentration - Scaled_Standard_Error, ymax = Scaled_Concentration + Scaled_Standard_Error),
+                position = position_dodge(0.8),
+                width = 0.25) +
+  labs(title = NULL,
+       x = "Cytokine",
+       y = "Scaled Average Concentration") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+## bar plot for scaled average raw cytokine concentration values across IBD active, IBD remission, and healthy groups
+
+# calculate average cytokine concentrations for each broad disease state and cytokine
+average_scaled_concentrations_activity <- combined_df2_long_activity %>%
+  group_by(Cytokine) %>%
+  mutate(Scaled_Concentration = as.numeric(scale_values(Concentration))) %>%
+  ungroup() %>%
+  group_by(broad_disease_state, Cytokine) %>%
+  summarise(Scaled_Concentration = mean(Scaled_Concentration, na.rm = TRUE)) %>%
+  ungroup()
+
+# calculate standard error of the scaled cytokine concentrations for each group
+error_scaled_concentrations_activity <- combined_df2_long_activity %>%
+  group_by(Cytokine) %>%
+  mutate(Scaled_Concentration = as.numeric(scale_values(Concentration))) %>%
+  ungroup() %>%
+  group_by(broad_disease_state, Cytokine) %>%
+  summarise(Scaled_Standard_Error = sd(Scaled_Concentration, na.rm = TRUE) / sqrt(n()), .groups = "drop") %>%
+  ungroup()
+
+# merge scaled average concentrations and scaled error data
+merged_scaled_data_activity <- merge(average_scaled_concentrations_activity, error_scaled_concentrations_activity, by = c("broad_disease_state", "Cytokine"))
+
+# plot grouped bar plot with error bars
+ggplot(merged_scaled_data_activity, aes(x = Cytokine, y = Scaled_Concentration, fill = broad_disease_state)) +
+  geom_bar(stat = "identity", position = position_dodge(0.8), width = 0.7) +
+  geom_errorbar(aes(ymin = Scaled_Concentration - Scaled_Standard_Error, ymax = Scaled_Concentration + Scaled_Standard_Error),
+                position = position_dodge(0.8),
+                width = 0.25) +
+  labs(title = NULL,
+       x = "Cytokine",
+       y = "Scaled Average Concentration",
+       fill = "Disease Activity") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
